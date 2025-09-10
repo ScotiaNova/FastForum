@@ -3,9 +3,11 @@
     <h2>帖子详情</h2>
     <el-button @click="goBack" style="margin-bottom: 20px;">返回</el-button>
     <div v-if="post" class="post-detail">
-      <p><strong>内容:</strong> {{ post.content }}</p>
-      <p><strong>用户 ID:</strong> {{ post.userId }}</p>
-      <p><strong>状态:</strong> {{ post.reported ? '已举报' : '正常' }}</p>
+      <p><strong>帖子ID:</strong> {{ post.id }}</p>
+      <p><strong>用户ID:</strong> {{ post.user_id }}</p>
+      <p><strong>状态:</strong> {{ post.reported ? '被举报' : '正常' }}</p>
+
+      <p><strong>内容: </strong> {{ post.content }}</p>
     </div>
     <div v-else class="no-post">帖子不存在</div>
   </div>
@@ -22,7 +24,6 @@ export default {
     const router = useRouter();
     const route = useRoute();
     const appState = inject('appState');
-    if (!appState) throw new Error('appState not provided');
     const { posts } = appState;
 
     const post = ref(null);

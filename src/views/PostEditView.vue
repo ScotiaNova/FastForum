@@ -22,6 +22,7 @@
 import { ref, onMounted, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import axios from 'axios'; // 确保导入 axios
 
 export default {
   name: 'PostEditView',
@@ -30,7 +31,7 @@ export default {
     const route = useRoute();
     const appState = inject('appState');
     if (!appState) throw new Error('appState not provided');
-    const { posts } = appState;
+    const { posts, user_id } = appState; // 注入 user_id
 
     const formRef = ref(null);
     const loading = ref(false);
@@ -57,14 +58,30 @@ export default {
         await formRef.value.validate();
         loading.value = true;
         const postId = parseInt(route.params.id);
-        const postIndex = posts.value.findIndex(p => p.id === postId);
-        if (postIndex !== -1) {
-          posts.value[postIndex].content = form.value.content;
+        
+        // 使用 axios.put 发送请求到后端
+        const response = await axios.put('/api/student/post', {
+          post_id: postId,
+          user_id: user_id.value,
+          content: form.value.content,
+        });
+
+        console.log('修改帖子响应:', response.data);
+
+        if (response.data.code === 200 && response.data.msg === 'OK') {
+          // 如果后端成功更新，同步更新前端的 posts 数组
+          const postIndex = posts.value.findIndex(p => p.id === postId);
+          if (postIndex !== -1) {
+            posts.value[postIndex].content = form.value.content;
+          }
           ElMessage.success('帖子更新成功！');
           router.push('/student');
+        } else {
+          ElMessage.error('更新失败: ' + (response.data.msg || '未知错误'));
         }
       } catch (error) {
-        ElMessage.error('更新失败，请重试');
+        console.error('更新帖子错误:', error);
+        ElMessage.error('更新失败，请重试: ' + (error.message || '网络错误'));
       } finally {
         loading.value = false;
       }
@@ -84,14 +101,8 @@ export default {
   padding: 20px;
   max-width: 600px;
   margin: 0 auto;
-  background: var(--color-background-soft);
+  background-color: #f9f9f9;
   border-radius: 8px;
-  border: 1px solid var(--color-border);
-}
-
-h2 {
-  text-align: center;
-  color: var(--color-heading);
-  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 </style>

@@ -8,6 +8,7 @@
           type="textarea"
           placeholder="请输入帖子内容"
           :rows="4"
+          :maxlength="500"
         />
       </el-form-item>
       <el-form-item>
@@ -19,8 +20,9 @@
 </template>
 
 <script>
-import { ref, inject } from 'vue';
+import { ref, inject, onMounted } from 'vue'; // 添加 onMounted
 import { useRouter } from 'vue-router';
+import axios from 'axios';
 import { ElMessage } from 'element-plus';
 
 export default {
@@ -37,24 +39,58 @@ export default {
     };
 
     const appState = inject('appState');
-    if (!appState) throw new Error('appState not provided');
-    const { posts, updatePosts, userId } = appState;
+    if (!appState) throw new Error('初始值 appState 未提供');
+    const { posts, updatePosts, user_id, currentUser } = appState;
+
+    // 调试：检查组件加载时的 user_id
+    onMounted(() => {
+      console.log('组件加载时 user_id:', user_id.value);
+    });
 
     const handleSubmit = async () => {
       try {
         await formRef.value.validate();
+        if (!user_id.value || typeof user_id.value !== 'number') { // 修正条件
+          console.log('用户 ID 无效:', user_id.value); // 调试
+          ElMessage.error('用户 ID 无效，请重新登录');
+          return;
+        }
         loading.value = true;
-        const newPost = {
-          id: Date.now(),
+
+        console.log('发送参数:', { content: form.value.content, user_id: user_id.value }); // 调试
+
+        const response = await axios.post('/api/student/post', {
           content: form.value.content,
-          userId: userId.value,
-          reported: false,
-        };
-        updatePosts(newPost);
-        ElMessage.success('帖子发布成功！');
-        router.push('/student');
+          user_id: user_id.value, // 使用登录时的 user_id
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        console.log('发帖响应:', response.data);
+
+        if (response.data.code === 200 && response.data.msg === 'OK') {
+          const newPost = {
+            id: Date.now(), // 假设后端返回新帖子的 ID
+            content: form.value.content,
+            username: currentUser.value,
+            user_id: user_id.value, // 确保使用登录时的 user_id
+            reported: false,
+          };
+          updatePosts(newPost);
+          ElMessage.success('帖子发布成功！');
+          console.log('帖子发布成功，对应用户ID为:', newPost.user_id, '帖子时间ID为:', newPost.id);
+          form.value.content = '';
+          router.push('/student');
+        } else if (response.data.code === 200000) {
+          ElMessage.error(`参数错误: ${response.data.msg}`);
+        } else {
+          ElMessage.error(response.data.msg || '发布失败');
+        }
       } catch (error) {
-        ElMessage.error('发布失败，请重试');
+        console.error('发帖错误:', error);
+        ElMessage.error('发布失败，请重试: ' + (error.message || '网络错误'));
       } finally {
         loading.value = false;
       }

@@ -34,72 +34,108 @@
 </template>
 
 <script>
-import { inject } from 'vue';
+import { ref, defineComponent, inject } from 'vue';
 import { useRouter } from 'vue-router';
+import axios from 'axios';
+import { ElMessage } from 'element-plus';
 
-export default {
+export default defineComponent({
   name: 'LoginView',
-  data() {
-    return {
-      form: {
-        username: '',
-        password: ''
-      },
-      loading: false
-    }
-  },
   setup() {
+    const form = ref({
+      username: '',
+      password: ''
+    });
+    const loading = ref(false);
     const router = useRouter();
-    const appState = inject('appState'); // 注入 appState
+    const appState = inject('appState');
+    const { login, user_id, user_type } = appState; // 注入 user_id 和 user_type
 
-    if (!appState) {
-      console.error('appState is not provided');
-      throw new Error('Dependency injection failed');
-    }
-
-    const { login } = appState;
-
-    return { router, login };
-  },
-  methods: {
-    async handleLogin() {
-      if (!this.form.username || !this.form.password) {
-        this.$message.warning('请输入用户名和密码');
+    const handleLogin = async () => {
+      if (!form.value.username || !form.value.password) {
+        ElMessage.warning('请输入用户名和密码');
         return;
       }
 
-      this.loading = true;
-      
+      loading.value = true;
+
       try {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        if (this.form.username === 'admin' && this.form.password === '123456') {
-          this.$message.success('管理员登录成功！');
-          this.login(this.form.username); // 更新全局状态
-          localStorage.setItem('token', 'fake-token');
-          localStorage.setItem('role', 'admin');
-          this.$router.push('/admin');
-        } else if (this.form.username === 'student' && this.form.password === '123456') {
-          this.$message.success('学生登录成功！');
-          this.login(this.form.username); // 更新全局状态
-          localStorage.setItem('token', 'fake-token');
-          localStorage.setItem('role', 'student');
-          this.$router.push('/student');
+        // 后端 API 请求
+        const response = await axios.post('/api/user/login', {
+          username: form.value.username,
+          password: form.value.password
+        }, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('后端响应:', response.data); // 调试
+
+        // 检查响应
+        if (response.data.code === 200 && response.data.msg === 'OK') {
+          const userData = response.data.data;
+          if (userData) {
+            ElMessage.success('登录成功！');
+            login(form.value.username); // 更新全局状态
+            user_id.value = userData.user_id; // 同步到 appState.user_id
+            user_type.value = userData.user_type; // 同步到 appState.user_type
+
+            // 将用户ID和类型存储到 localStorage
+            localStorage.setItem('user_id', userData.user_id);
+            localStorage.setItem('user_type', userData.user_type);
+
+            console.log('登录后 user_id:', user_id.value); // 调试
+
+            // 根据用户类型跳转
+            if (userData.user_type === 2) {
+              router.push('/admin');
+            } else if (userData.user_type === 1) {
+              router.push('/student');
+            } else {
+              ElMessage.warning('未知用户类型');
+              router.push('/student');
+            }
+          } else {
+            ElMessage.error('登录数据为空');
+          }
         } else {
-          this.$message.error('用户名或密码错误');
+          ElMessage.error(response.data.msg || '登录失败');
         }
       } catch (error) {
-        this.$message.error('登录失败，请重试');
+        console.error('登录错误:', error);
+        ElMessage.error('网络错误或后端不可达: ' + (error.message || '未知错误'));
+
+        // 备用模拟登录（仅开发测试) [接入后端后无用]
+        if (form.value.username && form.value.password) {
+          if (form.value.username === 'admin' && form.value.password === '123456') {
+            ElMessage.success('模拟管理员登录成功！');
+            login(form.value.username);
+            window.user_id = 1001; // 同步 window.user_id
+            window.user_type = 2; // 同步 window.user_type
+            router.push('/admin');
+          } else if (form.value.username === 'student' && form.value.password === '123456') {
+            ElMessage.success('模拟学生登录成功！');
+            login(form.value.username);
+            window.user_id = 1002; // 同步 window.user_id
+            window.user_type = 1; // 同步 window.user_type
+            router.push('/student');
+          } else {
+            ElMessage.error('用户名或密码错误');
+          }
+        }
       } finally {
-        this.loading = false;
+        loading.value = false; // 始终关闭加载
       }
-    },
-    
-    goBack() {
-      this.$router.go(-1);
-    }
+    };
+
+    const goBack = () => {
+      router.push('/');
+    };
+
+    return { form, loading, handleLogin, goBack };
   }
-}
+});
 </script>
 
 <style scoped>

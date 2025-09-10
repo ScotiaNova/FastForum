@@ -1,15 +1,17 @@
 <template>
   <div class="admin-container">
     <h2>管理员审批界面</h2>
-    <div v-if="pendingReports.length === 0" class="no-reports">暂无未审批举报</div>
+    <el-button type="primary" @click="fetchAdminReports" style="margin-bottom: 20px;">刷新未审批举报列表</el-button>
+    <div v-if="reports.length === 0" class="no-reports">暂无未审批举报</div>
     <div v-else class="reports-list">
-      <div v-for="(report, index) in pendingReports" :key="index" class="report-item">
-        <p><strong>帖子 ID:</strong> {{ report.postId }}</p>
+      <div v-for="report in reports" :key="report.report_id" class="report-item">
+        <p><strong>帖子 ID:</strong> {{ report.post_id }}</p>
+        <p><strong>被举报人用户名:</strong> {{ report.username }}</p>
+        <p><strong>帖子内容:</strong> {{ report.content }}</p>
         <p><strong>举报原因:</strong> {{ report.reason }}</p>
-        <p><strong>举报者 ID:</strong> {{ report.reporterId }}</p>
         <div class="report-actions">
-          <el-button type="success" size="small" @click="handleApprove(index)">批准（删除帖子）</el-button>
-          <el-button type="danger" size="small" @click="handleReject(index)">拒绝（保留帖子）</el-button>
+          <el-button type="success" size="small" @click="handleApprove(report.report_id)">批准（删除帖子）</el-button>
+          <el-button type="danger" size="small" @click="handleReject(report.report_id)">拒绝（保留帖子）</el-button>
         </div>
       </div>
     </div>
@@ -17,56 +19,36 @@
 </template>
 
 <script>
-import { ref, onMounted, inject, watch } from 'vue';
+import { onMounted, inject } from 'vue';
 import { ElMessage } from 'element-plus';
 
 export default {
   name: 'AdminView',
   setup() {
     const appState = inject('appState');
-    if (!appState) throw new Error('appState not provided or missing methods');
+    if (!appState) throw new Error('appState not provided');
 
-    // 调试：检查 appState 是否包含 approveReport 和 rejectReport
-    console.log('Injected appState:', appState);
+    // 直接从 appState 中获取 reports 数组和审批方法
+    const { reports, fetchAdminReports, approveOrRejectReport } = appState;
 
-    const { reports, approveReport, rejectReport } = appState;
-
-    const pendingReports = ref([]);
-
+    // 页面加载时自动获取未审批的举报列表
     onMounted(() => {
-      console.log('Mounted AdminView, reports:', reports.value);
-      updatePendingReports();
+      fetchAdminReports();
     });
 
-    const updatePendingReports = () => {
-      pendingReports.value = reports.value.filter(report => report.status === 'pending');
+    // 批准举报，调用 App.vue 中的方法并传入 report_id 和操作类型 2 (删除)
+    const handleApprove = (reportId) => {
+      approveOrRejectReport(reportId, 2);
+      delete reports[reportId];
     };
 
-    watch(() => reports.value, () => {
-      updatePendingReports();
-    }, { deep: true });
-
-    const handleApprove = (index) => {
-      console.log('Approving report at index:', index);
-      if (typeof approveReport === 'function') {
-        approveReport(index);
-      } else {
-        console.error('approveReport is not a function:', approveReport);
-      }
-      updatePendingReports();
+    // 拒绝举报，调用 App.vue 中的方法并传入 report_id 和操作类型 1 (保留)
+    const handleReject = (reportId) => {
+      approveOrRejectReport(reportId, 1);
     };
 
-    const handleReject = (index) => {
-      console.log('Rejecting report at index:', index);
-      if (typeof rejectReport === 'function') {
-        rejectReport(index);
-      } else {
-        console.error('rejectReport is not a function:', rejectReport);
-      }
-      updatePendingReports();
-    };
-
-    return { pendingReports, handleApprove, handleReject };
+    // 返回给模板使用的变量和方法
+    return { reports, fetchAdminReports, handleApprove, handleReject };
   },
 };
 </script>
@@ -91,22 +73,24 @@ h2 {
 }
 
 .report-item {
-  padding: 10px;
+  padding: 15px;
   background: var(--color-background);
   border-radius: 4px;
   color: var(--color-heading);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.report-item p {
+  margin: 0 0 8px 0;
 }
 
 .report-actions {
-  display: flex;
-  gap: 10px;
+  margin-top: 10px;
 }
 
 .no-reports {
   text-align: center;
-  color: var(--color-heading);
+  color: var(--color-text);
+  margin-top: 20px;
 }
 </style>
